@@ -20,6 +20,7 @@ env:
   WIKI_REPO_OWNER: Nassau-1
   WIKI_REPO_NAME: Wiki
   WIKI_DISPATCH_EVENT_TYPE: course_impact_report
+  WIKI_REPO_DISPATCH_TOKEN: ${{ secrets.WIKI_REPO_DISPATCH_TOKEN }}
 
 jobs:
   course-impact:
@@ -209,16 +210,16 @@ jobs:
             }
 
       - name: Warn if central Wiki dispatch is not configured
-        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' && secrets.WIKI_REPO_DISPATCH_TOKEN == '' }}
+        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' && env.WIKI_REPO_DISPATCH_TOKEN == '' }}
         shell: bash
         run: |
           echo "::warning::Course Impact report was generated, but WIKI_REPO_DISPATCH_TOKEN is not configured. The central Wiki inbox was not notified."
 
       - name: Dispatch Course Impact payload to Wiki
-        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' && secrets.WIKI_REPO_DISPATCH_TOKEN != '' }}
+        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' && env.WIKI_REPO_DISPATCH_TOKEN != '' }}
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.WIKI_REPO_DISPATCH_TOKEN }}
+          github-token: ${{ env.WIKI_REPO_DISPATCH_TOKEN }}
           script: |
             const fs = require("fs");
             const reportPath = `${process.env.COURSE_IMPACT_REPORT_DIR}/course-impact-report.json`;
