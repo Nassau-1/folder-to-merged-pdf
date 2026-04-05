@@ -230,21 +230,23 @@ jobs:
               repo: process.env.WIKI_REPO_NAME,
               event_type: process.env.WIKI_DISPATCH_EVENT_TYPE,
               client_payload: {
-                source_owner: context.repo.owner,
-                source_repo: context.repo.repo,
-                source_branch: report.branch,
-                source_event: report.event,
-                source_sha: context.sha,
-                source_run_id: String(context.runId),
-                source_run_attempt: String(context.runAttempt),
-                source_server_url: process.env.GITHUB_SERVER_URL,
-                final_status: report.final_status,
-                overall_confidence: report.overall_confidence,
-                documentation_acknowledged: report.documentation_acknowledged,
-                detected_concepts: report.detected_concepts,
-                existing_notes_impacted: report.existing_notes_impacted,
-                new_notes_recommended: report.new_notes_recommended,
-                example_files_to_reuse: report.example_files_to_reuse
+                report: {
+                  source_owner: context.repo.owner,
+                  source_repo: context.repo.repo,
+                  source_branch: report.branch,
+                  source_event: report.event,
+                  source_sha: context.sha,
+                  source_run_id: String(context.runId),
+                  source_run_attempt: String(context.runAttempt),
+                  source_server_url: process.env.GITHUB_SERVER_URL,
+                  final_status: report.final_status,
+                  overall_confidence: report.overall_confidence,
+                  documentation_acknowledged: report.documentation_acknowledged,
+                  detected_concepts: report.detected_concepts,
+                  existing_notes_impacted: report.existing_notes_impacted,
+                  new_notes_recommended: report.new_notes_recommended,
+                  example_files_to_reuse: report.example_files_to_reuse
+                }
               }
             });
 
