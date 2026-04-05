@@ -1,0 +1,279 @@
+name: Course Impact
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+  release:
+    types:
+      - published
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  COURSE_IMPACT_ENFORCEMENT_MODE: warn
+  COURSE_IMPACT_REPORT_DIR: .course-impact
+  WIKI_REPO_OWNER: Nassau-1
+  WIKI_REPO_NAME: Wiki
+  WIKI_DISPATCH_EVENT_TYPE: course_impact_report
+
+jobs:
+  course-impact:
+    name: Detect pedagogical impact
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Course Impact dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+
+      - name: Resolve git range
+        id: range
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            BASE_SHA="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+            HEAD_SHA="${{ github.sha }}"
+          else
+            BASE_SHA="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            BASE_SHA="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          fi
+
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Collect changed files
+        id: changed_files
+        shell: bash
+        run: |
+          mkdir -p "${COURSE_IMPACT_REPORT_DIR}"
+          git diff --name-only "${{ steps.range.outputs.base_sha }}" "${{ steps.range.outputs.head_sha }}" > "${COURSE_IMPACT_REPORT_DIR}/changed-files.txt"
+          touch "${COURSE_IMPACT_REPORT_DIR}/changed-files.txt"
+          echo "changed_files_file=${COURSE_IMPACT_REPORT_DIR}/changed-files.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Course Impact report
+        id: report
+        shell: bash
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          python tools/course-impact/generate_course_impact_report.py \
+            --repo-name "${{ github.event.repository.name }}" \
+            --branch "${BRANCH_NAME}" \
+            --event-name "${{ github.event_name }}" \
+            --base-ref "${{ steps.range.outputs.base_sha }}" \
+            --head-ref "${{ steps.range.outputs.head_sha }}" \
+            --changed-files-file "${{ steps.changed_files.outputs.changed_files_file }}" \
+            --map "tools/course-impact/course-impact-map.yaml" \
+            --report-json "${COURSE_IMPACT_REPORT_DIR}/course-impact-report.json" \
+            --report-md "${COURSE_IMPACT_REPORT_DIR}/course-impact-report.md"
+
+      - name: Export report outputs
+        id: report_meta
+        shell: bash
+        run: |
+          REPORT_JSON="${COURSE_IMPACT_REPORT_DIR}/course-impact-report.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path(os.environ["REPORT_JSON"]).read_text(encoding="utf-8"))
+          github_output = Path(os.environ["GITHUB_OUTPUT"])
+          with github_output.open("a", encoding="utf-8") as handle:
+              handle.write(f"final_status={report['final_status']}\n")
+              handle.write(f"overall_confidence={report['overall_confidence']}\n")
+              handle.write(f"documentation_acknowledged={str(report['documentation_acknowledged']).lower()}\n")
+              handle.write(f"detected_concepts_count={len(report['detected_concepts'])}\n")
+          PY
+        env:
+          REPORT_JSON: ${{ env.COURSE_IMPACT_REPORT_DIR }}/course-impact-report.json
+
+      - name: Add report to GitHub Step Summary
+        shell: bash
+        run: |
+          cat "${COURSE_IMPACT_REPORT_DIR}/course-impact-report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Course Impact artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: course-impact-report
+          path: |
+            ${{ env.COURSE_IMPACT_REPORT_DIR }}/course-impact-report.json
+            ${{ env.COURSE_IMPACT_REPORT_DIR }}/course-impact-report.md
+            ${{ env.COURSE_IMPACT_REPORT_DIR }}/changed-files.txt
+          if-no-files-found: error
+
+      - name: Upsert repo-local Course Impact inbox issue
+        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const reportPath = `${process.env.COURSE_IMPACT_REPORT_DIR}/course-impact-report.json`;
+            const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+            const marker = "<!-- course-impact-inbox -->";
+            const title = "Course Impact Inbox";
+            const labels = ["course-impact"];
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: "course-impact",
+                color: "1d76db",
+                description: "Tracked pedagogical impact follow-up"
+              });
+            } catch (error) {
+              if (error.status !== 422) {
+                throw error;
+              }
+            }
+
+            const body = [
+              marker,
+              "",
+              `Latest workflow run: ${runUrl}`,
+              `Latest status: \`${report.final_status}\``,
+              `Overall confidence: \`${report.overall_confidence}\``,
+              `Documentation acknowledged: \`${String(report.documentation_acknowledged)}\``,
+              "",
+              "Detected concepts:",
+              ...(report.detected_concepts.length ? report.detected_concepts.map((value) => `- ${value}`) : ["- none"]),
+              "",
+              "Existing notes impacted:",
+              ...(report.existing_notes_impacted.length ? report.existing_notes_impacted.map((value) => `- ${value}`) : ["- none"]),
+              "",
+              "New notes recommended:",
+              ...(report.new_notes_recommended.length ? report.new_notes_recommended.map((value) => `- ${value}`) : ["- none"]),
+              "",
+              "Example files to reuse:",
+              ...(report.example_files_to_reuse.length ? report.example_files_to_reuse.map((value) => `- \`${value}\``) : ["- none"])
+            ].join("\n");
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100
+            });
+
+            const existing = issues.find((issue) => !issue.pull_request && issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                title,
+                body,
+                labels
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels
+              });
+            }
+
+      - name: Warn if central Wiki dispatch is not configured
+        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' && secrets.WIKI_REPO_DISPATCH_TOKEN == '' }}
+        shell: bash
+        run: |
+          echo "::warning::Course Impact report was generated, but WIKI_REPO_DISPATCH_TOKEN is not configured. The central Wiki inbox was not notified."
+
+      - name: Dispatch Course Impact payload to Wiki
+        if: ${{ steps.report_meta.outputs.final_status != 'no-course-change' && secrets.WIKI_REPO_DISPATCH_TOKEN != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.WIKI_REPO_DISPATCH_TOKEN }}
+          script: |
+            const fs = require("fs");
+            const reportPath = `${process.env.COURSE_IMPACT_REPORT_DIR}/course-impact-report.json`;
+            const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+
+            await github.rest.repos.createDispatchEvent({
+              owner: process.env.WIKI_REPO_OWNER,
+              repo: process.env.WIKI_REPO_NAME,
+              event_type: process.env.WIKI_DISPATCH_EVENT_TYPE,
+              client_payload: {
+                source_owner: context.repo.owner,
+                source_repo: context.repo.repo,
+                source_branch: report.branch,
+                source_event: report.event,
+                source_sha: context.sha,
+                source_run_id: String(context.runId),
+                source_run_attempt: String(context.runAttempt),
+                source_server_url: process.env.GITHUB_SERVER_URL,
+                final_status: report.final_status,
+                overall_confidence: report.overall_confidence,
+                documentation_acknowledged: report.documentation_acknowledged,
+                detected_concepts: report.detected_concepts,
+                existing_notes_impacted: report.existing_notes_impacted,
+                new_notes_recommended: report.new_notes_recommended,
+                example_files_to_reuse: report.example_files_to_reuse
+              }
+            });
+
+      - name: Enforce Course Impact policy
+        shell: bash
+        run: |
+          MODE="${COURSE_IMPACT_ENFORCEMENT_MODE}"
+          STATUS="${{ steps.report_meta.outputs.final_status }}"
+          DOC_ACK="${{ steps.report_meta.outputs.documentation_acknowledged }}"
+          CONFIDENCE="${{ steps.report_meta.outputs.overall_confidence }}"
+
+          if [[ "$MODE" == "off" || "$STATUS" == "no-course-change" ]]; then
+            exit 0
+          fi
+
+          MESSAGE="Course Impact detected: status=${STATUS}, confidence=${CONFIDENCE}, documentation_acknowledged=${DOC_ACK}."
+
+          if [[ "$STATUS" == "manual-review-required" ]]; then
+            if [[ "$MODE" == "fail" ]]; then
+              echo "::error::${MESSAGE} Manual pedagogical review required."
+              exit 1
+            fi
+            echo "::warning::${MESSAGE} Manual pedagogical review required."
+            exit 0
+          fi
+
+          if [[ "$DOC_ACK" != "true" ]]; then
+            if [[ "$MODE" == "fail" ]]; then
+              echo "::error::${MESSAGE} Update repo docs or acknowledge the pedagogical impact in the PR."
+              exit 1
+            fi
+            echo "::warning::${MESSAGE} Update repo docs or acknowledge the pedagogical impact in the PR."
+          fi

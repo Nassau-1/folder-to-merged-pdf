@@ -1,0 +1,267 @@
+version: 1
+description: "Mapping initial Course Impact. Aide de detection, pas verite absolue."
+documentation_ack_patterns:
+  - "README.md"
+  - "docs/architecture.md"
+  - "docs/operations.md"
+  - "docs/decisions/**"
+  - "CHANGELOG.md"
+  - "TODO.md"
+rules:
+  - id: "pyproject"
+    patterns: ["pyproject.toml", "**/pyproject.toml"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Python", "Repo governance"]
+    note_targets:
+      - note: "[[Course - Python]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Repo Governance]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+
+  - id: "package-json"
+    patterns: ["package.json", "**/package.json"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["TypeScript", "Next.js", "Monorepo"]
+    note_targets:
+      - note: "[[Course - TypeScript]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Next.js]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Monorepo]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+
+  - id: "requirements"
+    patterns: ["requirements.txt", "**/requirements.txt"]
+    confidence: "medium"
+    status_hint: "course-update-required"
+    concepts: ["Python"]
+    note_targets:
+      - note: "[[Course - Python]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+
+  - id: "dockerfile"
+    patterns: ["Dockerfile", "**/Dockerfile", "Dockerfile.*", "**/Dockerfile.*"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Docker"]
+    note_targets:
+      - note: "[[Course - Docker]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+
+  - id: "docker-compose"
+    patterns: ["docker-compose*.yml", "**/docker-compose*.yml", "compose*.yml", "**/compose*.yml"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Docker Compose", "Docker", "Environment variables"]
+    note_targets:
+      - note: "[[Course - Docker Compose]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Docker]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Variables d'environnement]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+    project_case_action: "update-if-existing"
+
+  - id: "nginx-conf"
+    patterns: ["nginx*.conf", "**/nginx*.conf", "*.nginx.conf", "**/*.nginx.conf"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Nginx", "Reverse Proxy"]
+    note_targets:
+      - note: "[[Course - Nginx]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Reverse Proxy]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+    project_case_action: "update-if-existing"
+
+  - id: "next-api-routes"
+    patterns: ["app/api/**", "**/app/api/**"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["API REST", "Next.js", "HTTP Requests"]
+    note_targets:
+      - note: "[[Course - API REST]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Next.js]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - HTTP Requests]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+    project_case_action: "update-if-existing"
+
+  - id: "packages-contracts"
+    patterns: ["packages/contracts/**", "**/packages/contracts/**"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Contrats de donnees", "Monorepo"]
+    note_targets:
+      - note: "[[Course - Contrats de données]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Monorepo]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+    project_case_action: "update-if-existing"
+
+  - id: "storage-adapter"
+    patterns: ["**/transcript_store.py", "**/deal_worker_store.py", "**/*store.py"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Storage Adapter Pattern", "Qdrant", "Supabase", "Vector Search et RAG"]
+    note_targets:
+      - note: "[[Course - Storage Adapter Pattern]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Qdrant]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+      - note: "[[Course - Supabase]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+      - note: "[[Course - Vector Search et RAG]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+    project_case_action: "update-if-existing"
+
+  - id: "migrations"
+    patterns: ["migrations/**", "**/migrations/**", "alembic/**", "**/alembic/**", "supabase/**", "**/supabase/**"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Bases relationnelles", "Postgres", "Supabase"]
+    note_targets:
+      - note: "[[Course - Bases de données relationnelles]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+      - note: "[[Course - Postgres]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+      - note: "[[Course - Supabase]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+      - note: "[[Course - Schema Migrations]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+    project_case_action: "update-if-existing"
+
+  - id: "tests"
+    patterns: ["tests/**", "**/tests/**"]
+    confidence: "medium"
+    status_hint: "course-update-required"
+    concepts: ["Tests"]
+    note_targets:
+      - note: "[[Course - Tests]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-existing"
+
+  - id: "docs-architecture"
+    patterns: ["docs/architecture.md", "**/docs/architecture.md"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Architecture visible du projet"]
+    note_targets:
+      - note: "[[Course - Repo Governance]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+    project_case_action: "update-or-create"
+
+  - id: "docs-operations"
+    patterns: ["docs/operations.md", "**/docs/operations.md"]
+    confidence: "high"
+    status_hint: "course-update-required"
+    concepts: ["Execution", "Operations", "Environment variables"]
+    note_targets:
+      - note: "[[Course - Variables d'environnement]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+    project_case_action: "update-or-create"
+
+  - id: "readme"
+    patterns: ["README.md", "**/README.md"]
+    confidence: "medium"
+    status_hint: "course-update-required"
+    concepts: ["Repo governance", "Project case"]
+    note_targets:
+      - note: "[[Course - Repo Governance]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+    project_case_action: "update-or-create"
+
+  - id: "security"
+    patterns: ["SECURITY.md", "**/SECURITY.md"]
+    confidence: "medium"
+    status_hint: "course-update-required"
+    concepts: ["Security", "Repo governance"]
+    note_targets:
+      - note: "[[Course - Security Surfaces]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+      - note: "[[Course - Repo Governance]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+
+  - id: "todo"
+    patterns: ["TODO.md", "**/TODO.md"]
+    confidence: "low"
+    status_hint: "course-update-required"
+    concepts: ["Repo governance", "Project case"]
+    note_targets:
+      - note: "[[Course - Repo Governance]]"
+        note_type: "course"
+        state: "existing"
+        action: "enrich-if-relevant"
+    project_case_action: "update-if-existing"
+
+  - id: "generic-src"
+    patterns: ["src/**", "**/src/**"]
+    confidence: "low"
+    status_hint: "manual-review-required"
+    concepts: ["Generic code change"]
+    note_targets: []
+    project_case_action: "manual-review"
